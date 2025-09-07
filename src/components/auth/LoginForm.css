@@ -1,5 +1,7 @@
 /* loginform.css */
 
+
+
 /* Container */
 .login-form-container {
   position: relative;
@@ -12,26 +14,30 @@
 /* Robot mascot */
 .login-robot {
   position: absolute;
-  top: -2rem;
-  left: -7rem; /* adjust for hugging the form */
+  top: 5rem;
+  left: -9.7rem; /* adjust for hugging the form */
   width: 14rem;
   height: 14rem;
-  z-index: 10;
+  z-index: 30;
+  pointer-events: none; /* para hindi ma-block ang click sa inputs */
   animation: bounce-slow 3s infinite;
 }
 
-/* Card (Glass effect) */
-.login-card {
+/* Container with glass effect */
+.login-form-container {
   position: relative;
-  background: rgba(31, 41, 55, 0.6); /* gray-900 with transparency */
+  width: 100%;
+  max-width: 28rem;
+  margin: 0 auto;
+  padding: 2rem;
+  background: rgba(31, 41, 55, 0.4); /* transparent dark background */
   backdrop-filter: blur(12px); /* glass/frosted effect */
-  border-radius: 1.5rem; /* rounded-3xl */
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: 0 15px 30px rgba(0, 0, 0, 0.35); /* subtle depth */
-  overflow: hidden;
-  z-index: 20;
-  padding: 2rem 0;
+  border-radius: 1.5rem; /* rounded corners */
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  box-shadow: 0 15px 30px rgba(0, 0, 0, 0.25); /* subtle depth */
+  z-index: 10;
 }
+
 
 /* Card Header */
 .login-card-header {
@@ -59,8 +65,8 @@
   width: 100%;
   transition: all 0.3s;
   border-radius: 0.75rem;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background-color: rgba(31, 41, 55, 0.8); /* slightly darker glass effect */
+  border: 1px solid rgb(0, 0, 0);
+  background-color: rgba(0, 0, 0, 0.8); /* slightly darker glass effect */
   color: white;
   padding: 0.625rem 0.75rem;
 }
@@ -83,7 +89,7 @@
   font-weight: 600;
   color: white;
   background: linear-gradient(to right, #06b6d4, #3b82f6, #8b5cf6);
-  box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+  box-shadow: 0 5px 15px rgb(0, 0, 0);
   transition: transform 0.3s, box-shadow 0.3s;
 }
 
