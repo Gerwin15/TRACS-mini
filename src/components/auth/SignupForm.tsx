@@ -2,8 +2,16 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import "./SignupForm.css";
 
 interface SignupFormProps {
   onSwitchToLogin: () => void;
@@ -11,135 +19,92 @@ interface SignupFormProps {
 }
 
 export const SignupForm = ({ onSwitchToLogin, onSignupSuccess }: SignupFormProps) => {
-  const [formData, setFormData] = useState({
-    username: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
-  });
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (formData.password !== formData.confirmPassword) {
-      toast({
-        title: "Password mismatch",
-        description: "Passwords do not match",
-        variant: "destructive",
-      });
+
+    if (!username || !email || !password || !confirmPassword) {
+      toast({ title: "Error", description: "Please fill in all fields", variant: "destructive" });
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      toast({ title: "Error", description: "Passwords do not match", variant: "destructive" });
+      return;
+    }
+
+    if (password.length < 6) {
+      toast({ title: "Error", description: "Password must be at least 6 characters", variant: "destructive" });
       return;
     }
 
     setIsLoading(true);
+    try {
+      const res = await fetch("http://localhost/RETSEJ_UI-MAIN/backend/SignupForm.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: username, email, password }),
+      });
 
-    // Simulate API call - replace with actual Supabase auth
-    setTimeout(() => {
-      if (formData.email && formData.password && formData.username) {
-        toast({
-          title: "Account created!",
-          description: "Welcome to UserHub",
-        });
+      const data = await res.json();
+
+      if (data.status === "success") {
+        toast({ title: "Success", description: "Signup successful!" });
+        setUsername(""); setEmail(""); setPassword(""); setConfirmPassword("");
         onSignupSuccess();
       } else {
-        toast({
-          title: "Signup failed",
-          description: "Please fill in all fields",
-          variant: "destructive",
-        });
+        toast({ title: "Error", description: data.message, variant: "destructive" });
       }
+    } catch (error: any) {
+      console.error(error);
+      toast({ title: "Error", description: error.message || "Something went wrong", variant: "destructive" });
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   return (
-    <Card className="w-full max-w-md mx-auto backdrop-blur-sm border-border/50 shadow-card">
-      <CardHeader className="text-center space-y-2">
-        <CardTitle className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-          Join UserHub
-        </CardTitle>
-        <CardDescription>Create your account to get started</CardDescription>
+    <Card className="signup-card">
+      <CardHeader className="signup-header">
+        <CardTitle className="signup-title">Sign Up</CardTitle>
+        <CardDescription className="signup-description">
+          Create your account to get started
+        </CardDescription>
       </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
+      <form onSubmit={handleSubmit}>
+        <CardContent className="signup-content">
+          <div className="signup-field">
             <Label htmlFor="username">Username</Label>
-            <Input
-              id="username"
-              name="username"
-              type="text"
-              placeholder="Choose a username"
-              value={formData.username}
-              onChange={handleChange}
-              required
-              className="transition-all duration-300 focus:shadow-primary/20 focus:shadow-md"
-            />
+            <Input id="username" type="text" placeholder="Enter your username" value={username} onChange={(e) => setUsername(e.target.value)} required />
           </div>
-          <div className="space-y-2">
+          <div className="signup-field">
             <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              placeholder="Enter your email"
-              value={formData.email}
-              onChange={handleChange}
-              required
-              className="transition-all duration-300 focus:shadow-primary/20 focus:shadow-md"
-            />
+            <Input id="email" type="email" placeholder="Enter your email" value={email} onChange={(e) => setEmail(e.target.value)} required />
           </div>
-          <div className="space-y-2">
+          <div className="signup-field">
             <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              name="password"
-              type="password"
-              placeholder="Create a password"
-              value={formData.password}
-              onChange={handleChange}
-              required
-              className="transition-all duration-300 focus:shadow-primary/20 focus:shadow-md"
-            />
+            <Input id="password" type="password" placeholder="Enter your password" value={password} onChange={(e) => setPassword(e.target.value)} required />
           </div>
-          <div className="space-y-2">
+          <div className="signup-field">
             <Label htmlFor="confirmPassword">Confirm Password</Label>
-            <Input
-              id="confirmPassword"
-              name="confirmPassword"
-              type="password"
-              placeholder="Confirm your password"
-              value={formData.confirmPassword}
-              onChange={handleChange}
-              required
-              className="transition-all duration-300 focus:shadow-primary/20 focus:shadow-md"
-            />
+            <Input id="confirmPassword" type="password" placeholder="Confirm your password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
           </div>
-          <Button 
-            type="submit" 
-            className="w-full" 
-            disabled={isLoading}
-            variant="gradient"
-          >
-            {isLoading ? "Creating Account..." : "Create Account"}
+        </CardContent>
+        <CardFooter className="signup-footer">
+          <Button type="submit" className="signup-button" disabled={isLoading}>
+            {isLoading ? "Creating account..." : "Sign Up"}
           </Button>
-        </form>
-        <div className="mt-6 text-center">
-          <p className="text-sm text-muted-foreground">
-            Already have an account?{" "}
-            <button
-              onClick={onSwitchToLogin}
-              className="text-primary hover:text-primary-glow transition-colors underline"
-            >
-              Sign in
-            </button>
-          </p>
-        </div>
-      </CardContent>
+          <Button type="button" variant="ghost" className="signup-switch" onClick={onSwitchToLogin}>
+            Already have an account? Login
+          </Button>
+        </CardFooter>
+      </form>
     </Card>
   );
 };
