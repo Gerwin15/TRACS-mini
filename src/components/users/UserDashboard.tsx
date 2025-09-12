@@ -3,10 +3,29 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { UserPlus, Search, LogOut, Edit, Trash2 } from "lucide-react";
+import {
+  User as UserIcon,
+  UserPlus,
+  Search,
+  LogOut,
+  Edit,
+  Trash2,
+  Activity,
+  Users,
+  RefreshCw,
+} from "lucide-react";
 import { UserForm } from "./UserForm";
 import { useToast } from "@/hooks/use-toast";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
+// -------- Types --------
 export interface User {
   id: string;
   username: string;
@@ -15,89 +34,102 @@ export interface User {
   status: "active" | "inactive";
 }
 
-interface UserDashboardProps {
+interface Props {
   onLogout: () => void;
 }
 
-export const UserDashboard = ({ onLogout }: UserDashboardProps) => {
-  const [users, setUsers] = useState<User[]>([
-    {
-      id: "1",
-      username: "john_doe",
-      email: "john@example.com",
-      createdAt: "2024-01-15",
-      status: "active"
-    },
-    {
-      id: "2", 
-      username: "jane_smith",
-      email: "jane@example.com",
-      createdAt: "2024-01-20",
-      status: "active"
-    },
-    {
-      id: "3",
-      username: "bob_wilson",
-      email: "bob@example.com", 
-      createdAt: "2024-01-25",
-      status: "inactive"
-    }
-  ]);
-  
+export const UserDashboard = ({ onLogout }: Props) => {
+  const [users, setUsers] = useState<User[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [activity, setActivity] = useState<string[]>([]);
   const { toast } = useToast();
 
-  const filteredUsers = users.filter(user =>
-    user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase())
+  // -------- Helpers --------
+  const logActivity = (msg: string) =>
+    setActivity((prev) => [msg, ...prev].slice(0, 5));
+
+  const filteredUsers = users.filter(
+    (u) =>
+      u.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      u.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleAddUser = (userData: Omit<User, "id" | "createdAt">) => {
+  // -------- Handlers --------
+  const addUser = (data: Omit<User, "id" | "createdAt">) => {
     const newUser: User = {
-      ...userData,
+      ...data,
       id: Date.now().toString(),
-      createdAt: new Date().toISOString().split('T')[0]
+      createdAt: new Date().toISOString().split("T")[0],
     };
-    setUsers([...users, newUser]);
+    setUsers((prev) => [...prev, newUser]);
     setShowAddForm(false);
-    toast({
-      title: "User added successfully!",
-      description: `${userData.username} has been added to the system.`,
-    });
+
+    toast({ title: "User added", description: `${data.username} added.` });
+    logActivity(`✅ ${data.username} was added`);
   };
 
-  const handleEditUser = (userData: Omit<User, "id" | "createdAt">) => {
+  const updateUser = (data: Omit<User, "id" | "createdAt">) => {
     if (!editingUser) return;
-    
-    const updatedUsers = users.map(user =>
-      user.id === editingUser.id
-        ? { ...user, ...userData }
-        : user
+
+    setUsers((prev) =>
+      prev.map((u) => (u.id === editingUser.id ? { ...u, ...data } : u))
     );
-    setUsers(updatedUsers);
     setEditingUser(null);
-    toast({
-      title: "User updated successfully!",
-      description: `${userData.username}'s information has been updated.`,
-    });
+
+    toast({ title: "User updated", description: `${data.username} updated.` });
+    logActivity(`✏️ ${data.username} was updated`);
   };
 
-  const handleDeleteUser = (userId: string) => {
-    const userToDelete = users.find(u => u.id === userId);
-    setUsers(users.filter(user => user.id !== userId));
-    toast({
-      title: "User deleted",
-      description: `${userToDelete?.username} has been removed from the system.`,
-    });
+  const deleteUser = (id: string) => {
+    const target = users.find((u) => u.id === id);
+    setUsers((prev) => prev.filter((u) => u.id !== id));
+
+    toast({ title: "User deleted", description: `${target?.username} removed.` });
+    logActivity(`🗑️ ${target?.username} was removed`);
   };
 
+  const clearUsers = () => {
+    setUsers([]);
+    toast({ title: "Data refreshed", description: "User list cleared." });
+    logActivity("🔄 User list cleared");
+  };
+
+  const exportCSV = () => {
+    if (users.length === 0) {
+      toast({ title: "No data", description: "No users to export." });
+      return;
+    }
+
+    const headers = ["ID", "Username", "Email", "Created At", "Status"];
+    const rows = users.map((u) => [
+      u.id,
+      u.username,
+      u.email,
+      u.createdAt,
+      u.status,
+    ]);
+    const csv = [headers, ...rows].map((r) => r.join(",")).join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "users_report.csv";
+    a.click();
+
+    toast({ title: "Report ready", description: "CSV downloaded." });
+    logActivity("📑 User report generated");
+  };
+
+  // -------- Switch to Add/Edit forms --------
   if (showAddForm) {
     return (
       <UserForm
         title="Add New User"
-        onSubmit={handleAddUser}
+        onSubmit={addUser}
         onCancel={() => setShowAddForm(false)}
       />
     );
@@ -108,137 +140,221 @@ export const UserDashboard = ({ onLogout }: UserDashboardProps) => {
       <UserForm
         title="Edit User"
         initialData={editingUser}
-        onSubmit={handleEditUser}
+        onSubmit={updateUser}
         onCancel={() => setEditingUser(null)}
       />
     );
   }
 
+  // -------- Main Layout --------
   return (
-    <div className="min-h-screen bg-background p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-center">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-6 text-white">
+      <div className="max-w-7xl mx-auto space-y-8">
+        {/* HEADER */}
+        <header className="flex justify-between items-center border-b border-white/10 pb-4">
           <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              SMARTHub Dashboard
+            <h1 className="text-3xl font-extrabold bg-gradient-to-r from-indigo-400 to-fuchsia-500 bg-clip-text text-transparent">
+              SMARTHub
             </h1>
-            <p className="text-muted-foreground mt-1">Manage your users efficiently</p>
+            <p className="text-slate-400 mt-1">
+              Manage your users with insights and control
+            </p>
           </div>
-          <Button onClick={onLogout} variant="outline" size="sm">
-            <LogOut className="w-4 h-4 mr-2" />
-            Logout
-          </Button>
-        </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card className="border-border/50 shadow-card hover:shadow-primary/10 transition-shadow">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total Users</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-primary">{users.length}</div>
-            </CardContent>
-          </Card>
-          <Card className="border-border/50 shadow-card hover:shadow-primary/10 transition-shadow">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Active Users</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-500">
-                {users.filter(u => u.status === "active").length}
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-border/50 shadow-card hover:shadow-primary/10 transition-shadow">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Inactive Users</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-yellow-500">
-                {users.filter(u => u.status === "inactive").length}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Search and Add */}
-        <Card className="border-border/50 shadow-card">
-          <CardContent className="p-6">
-            <div className="flex flex-col sm:flex-row gap-4 justify-between">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                <Input
-                  placeholder="Search users by name or email..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-              <Button onClick={() => setShowAddForm(true)} variant="gradient">
-                <UserPlus className="w-4 h-4 mr-2" />
-                Add User
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Users Table */}
-        <Card className="border-border/50 shadow-card">
-          <CardHeader>
-            <CardTitle>Users ({filteredUsers.length})</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {filteredUsers.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  {searchTerm ? "No users found matching your search." : "No users found."}
+          {/* Profile Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="p-2 rounded-full border border-slate-700 hover:border-indigo-400 transition">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-r from-indigo-500 to-fuchsia-500 flex items-center justify-center font-semibold">
+                  J
                 </div>
-              ) : (
-                filteredUsers.map((user) => (
-                  <div
-                    key={user.id}
-                    className="flex items-center justify-between p-4 rounded-lg border border-border/50 hover:border-primary/50 transition-colors"
-                  >
-                    <div className="flex items-center space-x-4">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-r from-primary to-accent flex items-center justify-center text-white font-semibold">
-                        {user.username[0].toUpperCase()}
-                      </div>
-                      <div>
-                        <div className="font-semibold">{user.username}</div>
-                        <div className="text-sm text-muted-foreground">{user.email}</div>
-                        <div className="text-xs text-muted-foreground">
-                          Joined: {new Date(user.createdAt).toLocaleDateString()}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-3">
-                      <Badge variant={user.status === "active" ? "default" : "secondary"}>
-                        {user.status}
-                      </Badge>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setEditingUser(user)}
-                      >
-                        <Edit className="w-3 h-3" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => handleDeleteUser(user.id)}
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
-                    </div>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              className="w-48 bg-slate-900 text-white border border-slate-700"
+              align="end"
+            >
+              <DropdownMenuLabel className="flex items-center gap-2">
+                <UserIcon className="w-4 h-4" />
+                My Account
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => alert("Go to profile")}>
+                Profile
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onLogout}>
+                <LogOut className="w-4 h-4 mr-2" />
+                Logout
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </header>
+
+        {/* STATS */}
+        <section className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <StatCard label="Total Users" value={users.length} icon={<Users />} />
+          <StatCard
+            label="Active Users"
+            value={users.filter((u) => u.status === "active").length}
+            color="text-green-400"
+          />
+          <StatCard
+            label="Inactive Users"
+            value={users.filter((u) => u.status === "inactive").length}
+            color="text-yellow-400"
+          />
+          <StatCard
+            label="New This Month"
+            value={users.filter((u) => {
+              const d = new Date(u.createdAt);
+              const now = new Date();
+              return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+            }).length}
+            color="text-fuchsia-400"
+          />
+        </section>
+
+        {/* MAIN CONTENT */}
+        <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* USERS LIST */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Search + Add */}
+            <Card className="bg-slate-900/60 border border-slate-700">
+              <CardContent className="p-6 flex flex-col sm:flex-row gap-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4" />
+                  <Input
+                    placeholder="Search users by name or email..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10 bg-slate-800 border-slate-700 text-white"
+                  />
+                </div>
+                <Button
+                  onClick={() => setShowAddForm(true)}
+                  className="bg-gradient-to-r from-indigo-500 to-fuchsia-500"
+                >
+                  <UserPlus className="w-4 h-4 mr-2" /> Add User
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Users */}
+            <Card className="bg-slate-900/60 border border-slate-700">
+              <CardHeader>
+                <CardTitle>Users ({filteredUsers.length})</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {filteredUsers.length === 0 ? (
+                  <p className="text-center py-8 text-slate-500">
+                    {searchTerm ? "No results found." : "No users yet."}
+                  </p>
+                ) : (
+                  <div className="space-y-4">
+                    {filteredUsers.map((u) => (
+                      <UserRow
+                        key={u.id}
+                        user={u}
+                        onEdit={() => setEditingUser(u)}
+                        onDelete={() => deleteUser(u.id)}
+                      />
+                    ))}
                   </div>
-                ))
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* RIGHT: Quick Actions + Activity */}
+          <div className="space-y-6">
+            <Card className="bg-slate-900/60 border border-slate-700">
+              <CardHeader>
+                <CardTitle>Quick Actions</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Button variant="outline" className="w-full" onClick={clearUsers}>
+                  <RefreshCw className="w-4 h-4 mr-2" /> Refresh Data
+                </Button>
+                <Button variant="outline" className="w-full" onClick={exportCSV}>
+                  <Activity className="w-4 h-4 mr-2" /> Generate Report (CSV)
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-slate-900/60 border border-slate-700">
+              <CardHeader>
+                <CardTitle>Recent Activity</CardTitle>
+              </CardHeader>
+              <CardContent className="text-slate-400 text-sm space-y-2">
+                {activity.length === 0
+                  ? "No recent activity."
+                  : activity.map((item, i) => <p key={i}>{item}</p>)}
+              </CardContent>
+            </Card>
+          </div>
+        </section>
       </div>
     </div>
   );
 };
+
+// -------- Small Components --------
+const StatCard = ({
+  label,
+  value,
+  icon,
+  color,
+}: {
+  label: string;
+  value: number;
+  icon?: React.ReactNode;
+  color?: string;
+}) => (
+  <Card className="bg-slate-900/60 border border-slate-700 shadow">
+    <CardHeader className="pb-2">
+      <CardTitle className="text-sm text-slate-400">{label}</CardTitle>
+    </CardHeader>
+    <CardContent>
+      <div className={`text-3xl font-bold flex items-center gap-2 ${color || ""}`}>
+        {icon} {value}
+      </div>
+    </CardContent>
+  </Card>
+);
+
+const UserRow = ({
+  user,
+  onEdit,
+  onDelete,
+}: {
+  user: User;
+  onEdit: () => void;
+  onDelete: () => void;
+}) => (
+  <div className="flex items-center justify-between p-4 rounded-lg border border-slate-700 hover:border-indigo-400 transition">
+    <div className="flex items-center gap-4">
+      <div className="w-10 h-10 rounded-full bg-gradient-to-r from-indigo-500 to-fuchsia-500 flex items-center justify-center font-semibold">
+        {user.username[0].toUpperCase()}
+      </div>
+      <div>
+        <div className="font-semibold">{user.username}</div>
+        <div className="text-sm text-slate-400">{user.email}</div>
+        <div className="text-xs text-slate-500">
+          Joined: {new Date(user.createdAt).toLocaleDateString()}
+        </div>
+      </div>
+    </div>
+
+    <div className="flex items-center gap-3">
+      <Badge variant={user.status === "active" ? "default" : "secondary"}>
+        {user.status}
+      </Badge>
+      <Button size="sm" variant="outline" onClick={onEdit}>
+        <Edit className="w-3 h-3" />
+      </Button>
+      <Button size="sm" variant="destructive" onClick={onDelete}>
+        <Trash2 className="w-3 h-3" />
+      </Button>
+    </div>
+  </div>
+);
