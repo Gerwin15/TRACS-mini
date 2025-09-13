@@ -13,6 +13,7 @@ import {
   Activity,
   Users,
   RefreshCw,
+  Filter,
 } from "lucide-react";
 import { UserForm } from "./UserForm";
 import { useToast } from "@/hooks/use-toast";
@@ -36,11 +37,13 @@ export interface User {
 
 interface Props {
   onLogout: () => void;
+  currentUser?: { username: string; email?: string }; // logged-in user data
 }
 
-export const UserDashboard = ({ onLogout }: Props) => {
+export const UserDashboard = ({ onLogout, currentUser }: Props) => {
   const [users, setUsers] = useState<User[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [activity, setActivity] = useState<string[]>([]);
@@ -50,11 +53,14 @@ export const UserDashboard = ({ onLogout }: Props) => {
   const logActivity = (msg: string) =>
     setActivity((prev) => [msg, ...prev].slice(0, 5));
 
-  const filteredUsers = users.filter(
-    (u) =>
+  const filteredUsers = users.filter((u) => {
+    const matchesSearch =
       u.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      u.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+      u.email.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus =
+      statusFilter === "all" ? true : u.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
 
   // -------- Handlers --------
   const addUser = (data: Omit<User, "id" | "createdAt">) => {
@@ -124,6 +130,12 @@ export const UserDashboard = ({ onLogout }: Props) => {
     logActivity("📑 User report generated");
   };
 
+  // -------- Get Initial --------
+  const userInitial =
+    currentUser?.username?.charAt(0).toUpperCase() ||
+    currentUser?.email?.charAt(0).toUpperCase() ||
+    "U";
+
   // -------- Switch to Add/Edit forms --------
   if (showAddForm) {
     return (
@@ -166,7 +178,7 @@ export const UserDashboard = ({ onLogout }: Props) => {
             <DropdownMenuTrigger asChild>
               <button className="p-2 rounded-full border border-slate-700 hover:border-indigo-400 transition">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-r from-indigo-500 to-fuchsia-500 flex items-center justify-center font-semibold">
-                  J
+                  {userInitial}
                 </div>
               </button>
             </DropdownMenuTrigger>
@@ -174,14 +186,15 @@ export const UserDashboard = ({ onLogout }: Props) => {
               className="w-48 bg-slate-900 text-white border border-slate-700"
               align="end"
             >
-              <DropdownMenuLabel className="flex items-center gap-2">
-                <UserIcon className="w-4 h-4" />
-                My Account
+              <DropdownMenuLabel className="flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <UserIcon className="w-4 h-4" />
+                  {currentUser?.username || "My Account"}
+                </div>
+                <span className="text-xs text-slate-400">{currentUser?.email || ""}</span>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => alert("Go to profile")}>
-                Profile
-              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => alert("Go to profile")}>Profile</DropdownMenuItem>
               <DropdownMenuItem onClick={onLogout}>
                 <LogOut className="w-4 h-4 mr-2" />
                 Logout
@@ -218,7 +231,7 @@ export const UserDashboard = ({ onLogout }: Props) => {
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* USERS LIST */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Search + Add */}
+            {/* Search + Filter + Add */}
             <Card className="bg-slate-900/60 border border-slate-700">
               <CardContent className="p-6 flex flex-col sm:flex-row gap-4">
                 <div className="relative flex-1">
@@ -230,6 +243,32 @@ export const UserDashboard = ({ onLogout }: Props) => {
                     className="pl-10 bg-slate-800 border-slate-700 text-white"
                   />
                 </div>
+
+                {/* Filter Dropdown */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="flex items-center gap-2">
+                      <Filter className="w-4 h-4" />
+                      {statusFilter === "all"
+                        ? "All Users"
+                        : statusFilter === "active"
+                        ? "Active"
+                        : "Inactive"}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="bg-slate-900 text-white border border-slate-700">
+                    <DropdownMenuItem onClick={() => setStatusFilter("all")}>
+                      All Users
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setStatusFilter("active")}>
+                      Active
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setStatusFilter("inactive")}>
+                      Inactive
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
                 <Button
                   onClick={() => setShowAddForm(true)}
                   className="bg-gradient-to-r from-indigo-500 to-fuchsia-500"
@@ -247,7 +286,9 @@ export const UserDashboard = ({ onLogout }: Props) => {
               <CardContent>
                 {filteredUsers.length === 0 ? (
                   <p className="text-center py-8 text-slate-500">
-                    {searchTerm ? "No results found." : "No users yet."}
+                    {searchTerm || statusFilter !== "all"
+                      ? "No results found."
+                      : "No users yet."}
                   </p>
                 ) : (
                   <div className="space-y-4">
