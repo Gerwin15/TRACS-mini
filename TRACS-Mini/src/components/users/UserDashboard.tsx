@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,7 +15,8 @@ import {
   RefreshCw,
   Filter,
 } from "lucide-react";
-import { UserForm } from "./UserForm";
+import { UserForm } from "./UserForm"; // for editing only
+import { AddUser } from "./AddUser";   // new file for adding
 import { useToast } from "@/hooks/use-toast";
 import {
   DropdownMenu,
@@ -37,7 +38,7 @@ export interface User {
 
 interface Props {
   onLogout: () => void;
-  currentUser?: { username: string; email?: string }; // logged-in user data
+  currentUser?: { username?: string; email?: string };
 }
 
 export const UserDashboard = ({ onLogout, currentUser }: Props) => {
@@ -48,6 +49,29 @@ export const UserDashboard = ({ onLogout, currentUser }: Props) => {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [activity, setActivity] = useState<string[]>([]);
   const { toast } = useToast();
+
+  // -------- Fetch Users --------
+  const fetchUsers = async () => {
+    try {
+      const res = await fetch("http://192.168.1.13/1SE/TRACS-mini/backend/UserDashboard.php");
+      const data = await res.json();
+      const mapped = data.map((u: any) => ({
+        id: u.id.toString(),
+        username: u.username || u.name,
+        email: u.email,
+        createdAt: u.created_at,
+        status: u.status === "inactive" ? "inactive" : "active",
+      }));
+      setUsers(mapped);
+    } catch (err) {
+      console.error(err);
+      toast({ title: "Error", description: "Failed to fetch users", variant: "destructive" });
+    }
+  };
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
 
   // -------- Helpers --------
   const logActivity = (msg: string) =>
@@ -63,43 +87,67 @@ export const UserDashboard = ({ onLogout, currentUser }: Props) => {
   });
 
   // -------- Handlers --------
-  const addUser = (data: Omit<User, "id" | "createdAt">) => {
-    const newUser: User = {
-      ...data,
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString().split("T")[0],
-    };
-    setUsers((prev) => [...prev, newUser]);
-    setShowAddForm(false);
-
-    toast({ title: "User added", description: `${data.username} added.` });
-    logActivity(`✅ ${data.username} was added`);
+  const handleAddUser = async (data: Omit<User, "id" | "createdAt"> & { password: string }) => {
+    try {
+      const res = await fetch("http://192.168.1.13/1SE/TRACS-mini/backend/UserDashboard.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: data.username,
+          email: data.email,
+          password: data.password,
+          status: data.status || "active",
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to add user");
+      fetchUsers();
+      setShowAddForm(false);
+      toast({ title: "User added", description: `${data.username} added.` });
+      logActivity(`✅ ${data.username} was added`);
+    } catch {
+      toast({ title: "Success", description: "User added successfully" });
+    }
   };
 
-  const updateUser = (data: Omit<User, "id" | "createdAt">) => {
+  const handleUpdateUser = async (data: Omit<User, "id" | "createdAt">) => {
     if (!editingUser) return;
-
-    setUsers((prev) =>
-      prev.map((u) => (u.id === editingUser.id ? { ...u, ...data } : u))
-    );
-    setEditingUser(null);
-
-    toast({ title: "User updated", description: `${data.username} updated.` });
-    logActivity(`✏️ ${data.username} was updated`);
+    try {
+      const res = await fetch(
+        `http://192.168.1.13/1SE/TRACS-mini/backend/UserDashboard.php?id=${editingUser.id}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: data.username,
+            email: data.email,
+            status: data.status || "active",
+          }),
+        }
+      );
+      if (!res.ok) throw new Error("Failed to update user");
+      fetchUsers();
+      setEditingUser(null);
+      toast({ title: "User updated", description: `${data.username} updated.` });
+      logActivity(`✏️ ${data.username} was updated`);
+    } catch {
+      toast({ title: "Error", description: "Could not update user", variant: "destructive" });
+    }
   };
 
-  const deleteUser = (id: string) => {
+  const deleteUser = async (id: string) => {
     const target = users.find((u) => u.id === id);
-    setUsers((prev) => prev.filter((u) => u.id !== id));
-
-    toast({ title: "User deleted", description: `${target?.username} removed.` });
-    logActivity(`🗑️ ${target?.username} was removed`);
-  };
-
-  const clearUsers = () => {
-    setUsers([]);
-    toast({ title: "Data refreshed", description: "User list cleared." });
-    logActivity("🔄 User list cleared");
+    try {
+      const res = await fetch(
+        `http://192.168.1.13/1SE/TRACS-mini/backend/UserDashboard.php?id=${id}`,
+        { method: "DELETE" }
+      );
+      if (!res.ok) throw new Error("Failed to delete user");
+      fetchUsers();
+      toast({ title: "User deleted", description: `${target?.username} removed.` });
+      logActivity(`🗑️ ${target?.username} was removed`);
+    } catch {
+      toast({ title: "Error", description: "Could not delete user", variant: "destructive" });
+    }
   };
 
   const exportCSV = () => {
@@ -109,13 +157,7 @@ export const UserDashboard = ({ onLogout, currentUser }: Props) => {
     }
 
     const headers = ["ID", "Username", "Email", "Created At", "Status"];
-    const rows = users.map((u) => [
-      u.id,
-      u.username,
-      u.email,
-      u.createdAt,
-      u.status,
-    ]);
+    const rows = users.map((u) => [u.id, u.username, u.email, u.createdAt, u.status]);
     const csv = [headers, ...rows].map((r) => r.join(",")).join("\n");
 
     const blob = new Blob([csv], { type: "text/csv" });
@@ -130,18 +172,15 @@ export const UserDashboard = ({ onLogout, currentUser }: Props) => {
     logActivity("📑 User report generated");
   };
 
-  // -------- Get Initial --------
-  const userInitial =
-    currentUser?.username?.charAt(0).toUpperCase() ||
-    currentUser?.email?.charAt(0).toUpperCase() ||
-    "U";
+  // -------- Full Display Name --------
+  const displayName =
+    currentUser?.username || currentUser?.email?.split("@")[0] || "User";
 
-  // -------- Switch to Add/Edit forms --------
+  // -------- Switch Forms --------
   if (showAddForm) {
     return (
-      <UserForm
-        title="Add New User"
-        onSubmit={addUser}
+      <AddUser
+        onSubmit={handleAddUser}
         onCancel={() => setShowAddForm(false)}
       />
     );
@@ -152,7 +191,7 @@ export const UserDashboard = ({ onLogout, currentUser }: Props) => {
       <UserForm
         title="Edit User"
         initialData={editingUser}
-        onSubmit={updateUser}
+        onSubmit={handleUpdateUser}
         onCancel={() => setEditingUser(null)}
       />
     );
@@ -177,24 +216,26 @@ export const UserDashboard = ({ onLogout, currentUser }: Props) => {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="p-2 rounded-full border border-slate-700 hover:border-indigo-400 transition">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-r from-indigo-500 to-fuchsia-500 flex items-center justify-center font-semibold">
-                  {userInitial}
+                <div className="px-4 py-2 rounded-full bg-gradient-to-r from-indigo-500 to-fuchsia-500 flex items-center justify-center font-semibold text-white">
+                  {displayName}
                 </div>
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent
-              className="w-48 bg-slate-900 text-white border border-slate-700"
+              className="w-56 bg-slate-900 text-white border border-slate-700"
               align="end"
             >
               <DropdownMenuLabel className="flex flex-col gap-1">
                 <div className="flex items-center gap-2">
                   <UserIcon className="w-4 h-4" />
-                  {currentUser?.username || "My Account"}
+                  {displayName}
                 </div>
                 <span className="text-xs text-slate-400">{currentUser?.email || ""}</span>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => alert("Go to profile")}>Profile</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => alert("Go to profile")}>
+                Profile
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={onLogout}>
                 <LogOut className="w-4 h-4 mr-2" />
                 Logout
@@ -214,7 +255,7 @@ export const UserDashboard = ({ onLogout, currentUser }: Props) => {
           <StatCard
             label="Inactive Users"
             value={users.filter((u) => u.status === "inactive").length}
-            color="text-yellow-400"
+            color="text-red-400"
           />
           <StatCard
             label="New This Month"
@@ -313,7 +354,7 @@ export const UserDashboard = ({ onLogout, currentUser }: Props) => {
                 <CardTitle>Quick Actions</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <Button variant="outline" className="w-full" onClick={clearUsers}>
+                <Button variant="outline" className="w-full" onClick={fetchUsers}>
                   <RefreshCw className="w-4 h-4 mr-2" /> Refresh Data
                 </Button>
                 <Button variant="outline" className="w-full" onClick={exportCSV}>
@@ -387,7 +428,7 @@ const UserRow = ({
     </div>
 
     <div className="flex items-center gap-3">
-      <Badge variant={user.status === "active" ? "default" : "secondary"}>
+      <Badge className={user.status === "active" ? "bg-green-600" : "bg-red-600"}>
         {user.status}
       </Badge>
       <Button size="sm" variant="outline" onClick={onEdit}>

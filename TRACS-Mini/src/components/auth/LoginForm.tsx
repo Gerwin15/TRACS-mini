@@ -49,10 +49,7 @@ const LoginFormUI = ({
         <CardContent className="px-8 pb-8">
           <form onSubmit={onSubmit} className="space-y-5">
             <div className="space-y-1">
-              <Label
-                htmlFor="email"
-                className="text-gray-300 font-medium"
-              >
+              <Label htmlFor="email" className="text-gray-300 font-medium">
                 Email
               </Label>
               <Input
@@ -66,10 +63,7 @@ const LoginFormUI = ({
               />
             </div>
             <div className="space-y-1">
-              <Label
-                htmlFor="password"
-                className="text-gray-300 font-medium"
-              >
+              <Label htmlFor="password" className="text-gray-300 font-medium">
                 Password
               </Label>
               <Input
@@ -126,7 +120,7 @@ export const LoginForm = ({
       if (data.status === "success") {
         toast({
           title: "Login successful!",
-          description: `Welcome back, ${data.user.name}`,
+          description: `Welcome back, ${data.user.username}`, // ✅ use username
         });
         onLoginSuccess(data.user); // pass user data
       } else {

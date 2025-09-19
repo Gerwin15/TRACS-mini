@@ -6,20 +6,26 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft } from "lucide-react";
 import type { User } from "./UserDashboard";
+import { useToast } from "@/hooks/use-toast";
 
 interface UserFormProps {
   title: string;
   initialData?: User;
-  onSubmit: (userData: Omit<User, "id" | "createdAt">) => void;
+  onSubmit: (userData: Omit<User, "createdAt">) => void;
   onCancel: () => void;
 }
 
 export const UserForm = ({ title, initialData, onSubmit, onCancel }: UserFormProps) => {
   const [formData, setFormData] = useState({
+    id: initialData?.id || undefined,
     username: initialData?.username || "",
     email: initialData?.email || "",
+    password: "",
+    // default to "active" when adding
     status: initialData?.status || "active" as "active" | "inactive",
   });
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -29,9 +35,50 @@ export const UserForm = ({ title, initialData, onSubmit, onCancel }: UserFormPro
     setFormData({ ...formData, status: value });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(formData);
+
+    if (!formData.username || !formData.email || (!initialData && !formData.password)) {
+      toast({
+        title: "Error",
+        description: "Please fill in all required fields.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const payload = { ...formData };
+
+      // when editing, password is optional
+      if (initialData && !formData.password) {
+        delete payload.password;
+      }
+
+      const res = await fetch("http://192.168.1.13/1SE/TRACS-mini/backend/UserForm.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (data.status === "success") {
+        toast({ title: "Success", description: data.message });
+        onSubmit({
+          id: formData.id,
+          username: formData.username,
+          email: formData.email,
+          status: formData.status,
+        });
+      } else {
+        toast({ title: "Error", description: data.message, variant: "destructive" });
+      }
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -63,7 +110,6 @@ export const UserForm = ({ title, initialData, onSubmit, onCancel }: UserFormPro
                   value={formData.username}
                   onChange={handleChange}
                   required
-                  className="transition-all duration-300 focus:shadow-primary/20 focus:shadow-md"
                 />
               </div>
 
@@ -77,26 +123,43 @@ export const UserForm = ({ title, initialData, onSubmit, onCancel }: UserFormPro
                   value={formData.email}
                   onChange={handleChange}
                   required
-                  className="transition-all duration-300 focus:shadow-primary/20 focus:shadow-md"
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="status">Status</Label>
-                <Select value={formData.status} onValueChange={handleStatusChange}>
-                  <SelectTrigger className="transition-all duration-300 focus:shadow-primary/20 focus:shadow-md">
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="inactive">Inactive</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              {!initialData && (
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <Input
+                    id="password"
+                    name="password"
+                    type="password"
+                    placeholder="Enter password"
+                    value={formData.password}
+                    onChange={handleChange}
+                    required
+                  />
+                </div>
+              )}
+
+              {/* Only show status dropdown when editing */}
+              {initialData && (
+                <div className="space-y-2">
+                  <Label htmlFor="status">Status</Label>
+                  <Select value={formData.status} onValueChange={handleStatusChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               <div className="flex space-x-4">
-                <Button type="submit" variant="gradient" className="flex-1">
-                  {initialData ? "Update User" : "Add User"}
+                <Button type="submit" disabled={isLoading} className="flex-1">
+                  {isLoading ? "Saving..." : initialData ? "Update User" : "Add User"}
                 </Button>
                 <Button type="button" variant="outline" onClick={onCancel} className="flex-1">
                   Cancel

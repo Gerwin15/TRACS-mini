@@ -1,56 +1,90 @@
 <?php
+// LoginForm.php
 header("Content-Type: application/json");
-header("Access-Control-Allow-Origin: *"); 
-header("Access-Control-Allow-Methods: POST");
-header("Access-Control-Allow-Headers: Content-Type, Authorization");
+header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Methods: POST, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type");
 
-// Database connection
+// Handle preflight request
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+  http_response_code(200);
+  exit();
+}
+
+// ---------- DB CONNECTION ----------
 $host = "localhost";
-$user = "root";   // change if needed
-$pass = "";       // change if needed
-$db   = "retsej_ui"; // your DB name
+$user = "root";   // adjust if needed
+$pass = "";
+$db   = "retsej_ui";
 
 $conn = new mysqli($host, $user, $pass, $db);
 
 if ($conn->connect_error) {
-    die(json_encode(["status" => "error", "message" => "DB Connection failed"]));
+  http_response_code(500);
+  echo json_encode(["status" => "error", "message" => "DB connection failed"]);
+  exit();
 }
 
+// ---------- LOGIN ----------
 $data = json_decode(file_get_contents("php://input"), true);
 
-$email    = $data["email"] ?? "";
-$password = $data["password"] ?? "";
+$email    = $conn->real_escape_string($data['email'] ?? '');
+$password = $data['password'] ?? '';
 
-// Validate
 if (!$email || !$password) {
-    echo json_encode(["status" => "error", "message" => "Email and password are required"]);
-    exit;
+  http_response_code(400);
+  echo json_encode([
+    "status" => "error",
+    "message" => "Missing email or password"
+  ]);
+  exit();
 }
 
-// Check user
-$stmt = $conn->prepare("SELECT id, name, password FROM users WHERE email = ?");
+$stmt = $conn->prepare("SELECT id, name, email, password, status, created_at 
+                        FROM users 
+                        WHERE email=? 
+                        LIMIT 1");
 $stmt->bind_param("s", $email);
 $stmt->execute();
 $result = $stmt->get_result();
 
-if ($row = $result->fetch_assoc()) {
-    // ✅ use password_verify since password is hashed
-    if (password_verify($password, $row["password"])) {
-        echo json_encode([
-            "status" => "success",
-            "message" => "Login successful",
-            "user" => [
-                "id" => $row["id"],
-                "name" => $row["name"], // 🔑 use 'name' since DB column is 'name'
-                "email" => $email
-            ]
-        ]);
-    } else {
-        echo json_encode(["status" => "error", "message" => "Invalid password"]);
-    }
+if ($user = $result->fetch_assoc()) {
+  // Check if user is active
+  if ($user['status'] !== 'active') {
+    echo json_encode([
+      "status" => "error",
+      "message" => "Your account is inactive. Please contact the administrator."
+    ]);
+    exit();
+  }
+
+  // Validate password
+  if (password_verify($password, $user['password'])) {
+    unset($user['password']); // never expose hash
+
+    echo json_encode([
+      "status" => "success",
+      "message" => "Login successful",
+      "user" => [
+        "id" => $user['id'],
+        "username" => $user['name'],
+        "email" => $user['email'],
+        "status" => $user['status'],
+        "createdAt" => $user['created_at']
+      ]
+    ]);
+  } else {
+    echo json_encode([
+      "status" => "error",
+      "message" => "Invalid email or password"
+    ]);
+  }
 } else {
-    echo json_encode(["status" => "error", "message" => "User not found"]);
+  echo json_encode([
+    "status" => "error",
+    "message" => "User not found"
+  ]);
 }
 
+$stmt->close();
 $conn->close();
-?>
